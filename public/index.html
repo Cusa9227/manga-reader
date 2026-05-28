@@ -1,0 +1,215 @@
+mkdir public
+cat > public/index.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manga Reader</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #1a1a2e; color: #eee; font-family: Arial, sans-serif; }
+        header { background: #16213e; padding: 20px; text-align: center; }
+        header h1 { color: #e94560; font-size: 2rem; margin-bottom: 15px; }
+        .search-bar { display: flex; gap: 10px; justify-content: center; }
+        .search-bar input { padding: 10px 20px; width: 400px; border-radius: 25px; border: none; background: #0f3460; color: #eee; font-size: 1rem; }
+        .search-bar button { padding: 10px 25px; border-radius: 25px; border: none; background: #e94560; color: white; cursor: pointer; font-size: 1rem; }
+        .search-bar button:hover { background: #c73652; }
+        #content { padding: 30px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 20px; }
+        .manga-card { background: #16213e; border-radius: 10px; overflow: hidden; cursor: pointer; transition: transform 0.2s; }
+        .manga-card:hover { transform: scale(1.05); }
+        .manga-card img { width: 100%; height: 230px; object-fit: cover; }
+        .manga-card .info { padding: 10px; }
+        .manga-card .info h3 { font-size: 0.85rem; color: #eee; }
+        .manga-detail { display: none; }
+        .manga-detail.active { display: block; }
+        .detail-header { display: flex; gap: 30px; margin-bottom: 30px; }
+        .detail-header img { width: 200px; height: 300px; object-fit: cover; border-radius: 10px; }
+        .detail-info h2 { font-size: 1.8rem; color: #e94560; margin-bottom: 10px; }
+        .detail-info p { color: #aaa; margin-bottom: 10px; line-height: 1.6; }
+        .detail-info .status { color: #4ecca3; font-weight: bold; }
+        .chapters { margin-top: 20px; }
+        .chapters h3 { margin-bottom: 15px; color: #e94560; }
+        .chapter-list { display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto; }
+        .chapter-item { background: #16213e; padding: 12px 20px; border-radius: 8px; cursor: pointer; display: flex; justify-content: space-between; }
+        .chapter-item:hover { background: #0f3460; }
+        .reader { display: none; }
+        .reader.active { display: block; }
+        .reader-controls { position: fixed; top: 0; left: 0; right: 0; background: #16213e; padding: 15px 30px; display: flex; align-items: center; gap: 20px; z-index: 100; }
+        .reader-controls button { padding: 8px 20px; border-radius: 20px; border: none; background: #e94560; color: white; cursor: pointer; }
+        .pages { margin-top: 70px; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+        .pages img { max-width: 900px; width: 100%; }
+        .back-btn { padding: 10px 25px; border-radius: 25px; border: none; background: #0f3460; color: white; cursor: pointer; margin-bottom: 20px; }
+        .back-btn:hover { background: #e94560; }
+        .loading { text-align: center; padding: 50px; color: #aaa; font-size: 1.2rem; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🎌 Manga Reader</h1>
+        <div class="search-bar">
+            <input type="text" id="searchInput" placeholder="Search manga..." onkeypress="handleKey(event)">
+            <button onclick="search()">Search</button>
+        </div>
+    </header>
+
+    <div id="content">
+        <div id="home">
+            <div class="loading">Search for a manga to get started</div>
+        </div>
+        <div id="mangaDetail" class="manga-detail">
+            <button class="back-btn" onclick="showHome()">← Back to Search</button>
+            <div class="detail-header">
+                <img id="detailCover" src="" alt="">
+                <div class="detail-info">
+                    <h2 id="detailTitle"></h2>
+                    <p class="status" id="detailStatus"></p>
+                    <p id="detailAuthor"></p>
+                    <p id="detailDesc"></p>
+                </div>
+            </div>
+            <div class="chapters">
+                <h3>Chapters</h3>
+                <div class="chapter-list" id="chapterList"></div>
+            </div>
+        </div>
+        <div id="readerView" class="reader">
+            <div class="reader-controls">
+                <button onclick="showDetail()">← Back</button>
+                <span id="readerTitle"></span>
+            </div>
+            <div class="pages" id="pages"></div>
+        </div>
+    </div>
+
+    <script>
+        const API = ''
+        let currentManga = null
+        let currentChapters = []
+
+        function handleKey(e) {
+            if (e.key === 'Enter') search()
+        }
+
+        async function search() {
+            const query = document.getElementById('searchInput').value.trim()
+            if (!query) return
+            document.getElementById('home').innerHTML = '<div class="loading">Searching...</div>'
+            showHome()
+            try {
+                const res = await fetch(`${API}/api/search?q=${encodeURIComponent(query)}`)
+                const data = await res.json()
+                displayResults(data.data || [])
+            } catch (err) {
+                document.getElementById('home').innerHTML = '<div class="loading">Error loading results</div>'
+            }
+        }
+
+        function displayResults(results) {
+            if (!results.length) {
+                document.getElementById('home').innerHTML = '<div class="loading">No results found</div>'
+                return
+            }
+            const grid = document.createElement('div')
+            grid.className = 'grid'
+            results.forEach(manga => {
+                const coverRel = manga.relationships.find(r => r.type === 'cover_art')
+                const coverFile = coverRel?.attributes?.fileName || ''
+                const image = coverFile ? `https://uploads.mangadex.org/covers/${manga.id}/${coverFile}.512.jpg` : ''
+                const title = manga.attributes.title?.en || Object.values(manga.attributes.title)[0] || 'Unknown'
+                const card = document.createElement('div')
+                card.className = 'manga-card'
+                card.innerHTML = `<img src="${image}" alt="${title}" onerror="this.src='https://via.placeholder.com/160x230?text=No+Cover'"><div class="info"><h3>${title}</h3></div>`
+                card.onclick = () => loadManga(manga.id)
+                grid.appendChild(card)
+            })
+            document.getElementById('home').innerHTML = ''
+            document.getElementById('home').appendChild(grid)
+        }
+
+        async function loadManga(id) {
+            document.getElementById('home').innerHTML = '<div class="loading">Loading...</div>'
+            try {
+                const [detailRes, chaptersRes] = await Promise.all([
+                    fetch(`${API}/api/manga/${id}`),
+                    fetch(`${API}/api/manga/${id}/chapters`)
+                ])
+                const detail = await detailRes.json()
+                const chapters = await chaptersRes.json()
+                currentManga = detail.data
+                currentChapters = chapters.data || []
+                displayMangaDetail()
+            } catch (err) {
+                document.getElementById('home').innerHTML = '<div class="loading">Error loading manga</div>'
+            }
+        }
+
+        function displayMangaDetail() {
+            const manga = currentManga
+            const attrs = manga.attributes
+            const coverRel = manga.relationships.find(r => r.type === 'cover_art')
+            const coverFile = coverRel?.attributes?.fileName || ''
+            const image = coverFile ? `https://uploads.mangadex.org/covers/${manga.id}/${coverFile}.512.jpg` : ''
+            const title = attrs.title?.en || Object.values(attrs.title)[0] || 'Unknown'
+            const author = manga.relationships.find(r => r.type === 'author')?.attributes?.name || 'Unknown'
+            const desc = attrs.description?.en || Object.values(attrs.description || {})[0] || 'No description'
+            document.getElementById('detailCover').src = image
+            document.getElementById('detailTitle').textContent = title
+            document.getElementById('detailStatus').textContent = `Status: ${attrs.status}`
+            document.getElementById('detailAuthor').textContent = `Author: ${author}`
+            document.getElementById('detailDesc').textContent = desc
+            const chapterList = document.getElementById('chapterList')
+            chapterList.innerHTML = ''
+            const seen = new Set()
+            currentChapters.forEach(ch => {
+                const key = ch.attributes.chapter
+                if (seen.has(key)) return
+                seen.add(key)
+                const item = document.createElement('div')
+                item.className = 'chapter-item'
+                item.innerHTML = `<span>${ch.attributes.title || `Chapter ${ch.attributes.chapter}`}</span><span>${ch.attributes.publishAt?.split('T')[0] || ''}</span>`
+                item.onclick = () => loadChapter(ch.id, ch.attributes.title || `Chapter ${ch.attributes.chapter}`)
+                chapterList.appendChild(item)
+            })
+            document.getElementById('home').style.display = 'none'
+            document.getElementById('readerView').classList.remove('active')
+            document.getElementById('mangaDetail').classList.add('active')
+        }
+
+        async function loadChapter(id, title) {
+            document.getElementById('readerTitle').textContent = title
+            document.getElementById('pages').innerHTML = '<div class="loading">Loading pages...</div>'
+            document.getElementById('mangaDetail').classList.remove('active')
+            document.getElementById('readerView').classList.add('active')
+            try {
+                const res = await fetch(`${API}/api/chapter/${id}`)
+                const data = await res.json()
+                const baseUrl = data.baseUrl
+                const hash = data.chapter.hash
+                const pages = data.chapter.data.map(f => `${baseUrl}/data/${hash}/${f}`)
+                document.getElementById('pages').innerHTML = ''
+                pages.forEach(src => {
+                    const img = document.createElement('img')
+                    img.src = src
+                    img.alt = 'Page'
+                    document.getElementById('pages').appendChild(img)
+                })
+            } catch (err) {
+                document.getElementById('pages').innerHTML = '<div class="loading">Error loading pages</div>'
+            }
+        }
+
+        function showHome() {
+            document.getElementById('home').style.display = 'block'
+            document.getElementById('mangaDetail').classList.remove('active')
+            document.getElementById('readerView').classList.remove('active')
+        }
+
+        function showDetail() {
+            document.getElementById('readerView').classList.remove('active')
+            document.getElementById('mangaDetail').classList.add('active')
+        }
+    </script>
+</body>
+</html>
