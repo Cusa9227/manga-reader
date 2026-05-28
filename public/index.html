@@ -1,4 +1,11 @@
-mkdir public
+const pages = data.chapter.data.map(f => `/api/image?url=${encodeURIComponent(`${baseUrl}/data/${hash}/${f}`)}`)
+const image = coverFile ? `/api/image?url=${encodeURIComponent(`https://uploads.mangadex.org/covers/${manga.id}/${coverFile}.512.jpg`)}` : ''
+git add .
+git commit -m "Add image proxy"
+git push
+git add .
+git commit -m "Add image proxy"
+git push
 cat > public/index.html
 <!DOCTYPE html>
 <html lang="en">
@@ -116,11 +123,11 @@ cat > public/index.html
             results.forEach(manga => {
                 const coverRel = manga.relationships.find(r => r.type === 'cover_art')
                 const coverFile = coverRel?.attributes?.fileName || ''
-                const image = coverFile ? `https://uploads.mangadex.org/covers/${manga.id}/${coverFile}.512.jpg` : ''
+                const image = coverFile ? `/api/image?url=${encodeURIComponent(`https://uploads.mangadex.org/covers/${manga.id}/${coverFile}.512.jpg`)}` : ''
                 const title = manga.attributes.title?.en || Object.values(manga.attributes.title)[0] || 'Unknown'
                 const card = document.createElement('div')
                 card.className = 'manga-card'
-                card.innerHTML = `<img src="${image}" alt="${title}" onerror="this.src='https://via.placeholder.com/160x230?text=No+Cover'"><div class="info"><h3>${title}</h3></div>`
+                card.innerHTML = `<img src="${image}" alt="${title}"><div class="info"><h3>${title}</h3></div>`
                 card.onclick = () => loadManga(manga.id)
                 grid.appendChild(card)
             })
@@ -150,7 +157,7 @@ cat > public/index.html
             const attrs = manga.attributes
             const coverRel = manga.relationships.find(r => r.type === 'cover_art')
             const coverFile = coverRel?.attributes?.fileName || ''
-            const image = coverFile ? `https://uploads.mangadex.org/covers/${manga.id}/${coverFile}.512.jpg` : ''
+            const image = coverFile ? `/api/image?url=${encodeURIComponent(`https://uploads.mangadex.org/covers/${manga.id}/${coverFile}.512.jpg`)}` : ''
             const title = attrs.title?.en || Object.values(attrs.title)[0] || 'Unknown'
             const author = manga.relationships.find(r => r.type === 'author')?.attributes?.name || 'Unknown'
             const desc = attrs.description?.en || Object.values(attrs.description || {})[0] || 'No description'
@@ -187,7 +194,7 @@ cat > public/index.html
                 const data = await res.json()
                 const baseUrl = data.baseUrl
                 const hash = data.chapter.hash
-                const pages = data.chapter.data.map(f => `${baseUrl}/data/${hash}/${f}`)
+                const pages = data.chapter.data.map(f => `/api/image?url=${encodeURIComponent(`${baseUrl}/data/${hash}/${f}`)}`)
                 document.getElementById('pages').innerHTML = ''
                 pages.forEach(src => {
                     const img = document.createElement('img')
